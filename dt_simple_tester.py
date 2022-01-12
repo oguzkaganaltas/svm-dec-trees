@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.core.fromnumeric import argmin
 from dt import entropy, info_gain, gini, avg_gini_index, calculate_split_values, chi_squared_test
 
 parent_bucket = [3, 2, 3]
@@ -68,3 +69,32 @@ right_bucket2 = [0, 1, 4]
 chi_squared2, df2 = chi_squared_test(left_bucket2, right_bucket2)
 print('chi_squared:', abs(chi_squared2 - 1.6666666666666665) < 10 ** -5)
 print('degree_of_freedom:', df2 == 1)
+
+
+all_features_dec_values = []
+all_features_dec_split_index = []
+for i in range(data.shape[1]):
+    attribute = calculate_split_values(data, labels, 2, i, 'avg_gini_index')
+    min_index = np.argmin(attribute[:,1])
+    decision_value= attribute[:,0][min_index]
+    decision_split_index= min_index
+    all_features_dec_values.append(decision_value)
+    all_features_dec_split_index.append(attribute[:,1][decision_split_index])
+
+
+feature_num = np.argmin(all_features_dec_split_index)
+test_val = all_features_dec_values[np.argmin(all_features_dec_split_index)]
+
+left_bucket= []
+right_bucket = []
+left_data = []
+right_data = []
+for i in range(len(data)):
+    if(data[i][feature_num] > test_val):
+        right_bucket.append(labels[i])
+        right_data.append
+    else:
+        left_bucket.append(labels[i])
+
+print(left_bucket)
+print(right_bucket)

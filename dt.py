@@ -98,7 +98,7 @@ def calculate_split_values(data, labels, num_classes, attr_index, heuristic_name
     first column is the split values and the second column contains the calculated
     heuristic values for their splits.
     """
-    def create_bucket(labels, index):
+    def create_bucket_avg_gini(labels, index):
         left_index, left_count = np.unique(labels[:index], return_counts=True)
         left_bucket = np.zeros(num_classes)
         left_bucket[left_index] = left_count
@@ -128,7 +128,7 @@ def calculate_split_values(data, labels, num_classes, attr_index, heuristic_name
 
     def ginis(labels):
         if(heuristic_name == "avg_gini_index"):
-            return [create_bucket(labels, i+1) for i in range(len(labels)-1)]
+            return [create_bucket_avg_gini(labels, i+1) for i in range(len(labels)-1)]
         else:
             return [create_info_gain(labels, i+1) for i in range(len(labels)-1)]
 
@@ -162,3 +162,17 @@ def chi_squared_test(left_bucket, right_bucket):
     df = (np.count_nonzero(rows_sum) - 1) * (2 - 1)
 
     return np.sum(np.nan_to_num(np.divide(np.square(actual-expected),expected))), df
+
+
+class Node:
+    decision_val = None
+    bucket = None
+    left_child = None
+    right_child = None
+
+
+    def __init__(self, *args):
+        if len(args) > 1:
+            self.decision_val = args[1]
+            self.bucket = args[0]
+    
