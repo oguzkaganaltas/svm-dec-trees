@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.core.fromnumeric import mean
-
+import pydot
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 
 def entropy(bucket):
     """
@@ -163,16 +165,117 @@ def chi_squared_test(left_bucket, right_bucket):
 
     return np.sum(np.nan_to_num(np.divide(np.square(actual-expected),expected))), df
 
-
 class Node:
     decision_val = None
+    feature = None
     bucket = None
     left_child = None
     right_child = None
-
-
-    def __init__(self, *args):
-        if len(args) > 1:
-            self.decision_val = args[1]
-            self.bucket = args[0]
+    def __init__(self):
+        pass
     
+
+def print_tree(root,parent_id,graph):
+
+    if root is None:
+        return
+
+    print_tree(root.left_child,str(2*int(parent_id)+1),graph)
+    node = None
+    if(root.decision_val != None):
+        node = pydot.Node(str(parent_id),label=f"x[{root.feature}]<"+str(root.decision_val)+"\n"+str(root.bucket))
+    else:
+        node = pydot.Node(str(parent_id),label=str(root.bucket))
+
+    graph.add_node(node)
+    print_tree(root.right_child,str(2*int(parent_id)+2),graph)
+    
+    if(root.left_child or root.right_child is not None):
+        graph.add_edge(pydot.Edge(str(parent_id),str(2*int(parent_id)+1)))
+        graph.add_edge(pydot.Edge(str(parent_id),str(2*int(parent_id)+2)))
+    return
+
+def predict(model,train_set):
+    
+    def test(root, data):
+        if root.decision_val is None:
+            return np.argmax(np.array(root.bucket))
+        
+        feature_num = root.feature
+        
+        if(data[feature_num] < root.decision_val):
+            return test(root.left_child, data)
+        else:
+            return test(root.right_child, data)
+
+    predictions = []
+    for datum in train_set:
+        predictions.append(test(model,datum))
+    return np.array(predictions) 
+
+def bucketizer(labels,num_classes):
+    index, count = np.unique(labels, return_counts=True)
+    bucket = np.zeros(num_classes).astype(int)
+    bucket[index] = count
+    return bucket
+
+def ID3(data, labels, num_classes,strategy):
+
+    if(entropy(bucketizer(labels, num_classes)) == 0.0):
+        node = Node()
+        node.bucket = bucketizer(labels,num_classes)
+        return node
+    decision_func = np.argmax
+    if(strategy == "avg_gini_index"):
+        decision_func = np.argmin
+    
+    #here picking the parent node and the test value
+    all_features_dec_values = []
+    all_features_dec_split_index = []
+    for i in range(data.shape[1]):
+        attribute = calculate_split_values(
+            data, labels,num_classes, i, strategy)
+        min_index = decision_func(attribute[:, 1])
+        decision_value = attribute[:, 0][min_index]
+        decision_split_index = min_index
+
+        all_features_dec_values.append(decision_value)
+        all_features_dec_split_index.append(attribute[:, 1][decision_split_index])
+    
+    feature_num = np.argmin(all_features_dec_split_index)  # which attribute
+    test_val = all_features_dec_values[feature_num]  # test value
+
+    node = Node()
+    node.bucket = bucketizer(labels, num_classes)
+    node.decision_val = test_val
+    node.feature = feature_num
+
+    data_left = data[data[:,feature_num] < test_val]
+    data_right = data[data[:,feature_num] >= test_val]
+    labels_left = labels[data[:,feature_num] < test_val]
+    labels_right = labels[data[:,feature_num] >= test_val]
+
+    node.left_child = ID3(data_left,labels_left,num_classes,strategy)
+    node.right_child = ID3(data_right,labels_right,num_classes,strategy)
+
+    return node
+
+train_set = np.load("dt/train_set.npy ")
+train_labels = np.load("dt/train_labels.npy ")
+test_set = np.load("dt/test_set.npy ")
+test_labels = np.load("dt/test_labels.npy ")
+
+num_classes = len(np.unique(train_labels))
+strategy = "avg_gini_index"
+prune = False
+
+tree = ID3(train_set,train_labels,num_classes=num_classes,strategy=strategy)
+
+graph = pydot.Dot(graph_type='digraph')
+print_tree(tree,0,graph)
+graph.write_png(strategy+"-"+str(prune)+".png")
+
+predictions = predict(tree, test_set)
+cm = confusion_matrix(test_labels, predictions)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+disp.plot()
