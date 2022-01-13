@@ -249,19 +249,20 @@ def ID3(data, labels, num_classes,strategy):
     node.bucket = bucketizer(labels, num_classes)
     node.decision_val = test_val
     node.feature = feature_num
-    
+
     data_left = data[data[:,feature_num] < test_val]
     data_right = data[data[:,feature_num] >= test_val]
     labels_left = labels[data[:,feature_num] < test_val]
     labels_right = labels[data[:,feature_num] >= test_val]
-    
+
     if(len(labels_left) == 0):
-        node = Node()
-        node.bucket = bucketizer(labels,num_classes)
+        node = Node()        
+        node.bucket = bucketizer(labels_left, num_classes)
+
         return node
     if(len(labels_right) == 0):
         node = Node()
-        node.bucket = bucketizer(labels,num_classes)
+        node.bucket = bucketizer(labels_right,num_classes)
         return node
 
     node.left_child = ID3(data_left,labels_left,num_classes,strategy)
