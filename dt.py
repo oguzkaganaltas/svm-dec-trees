@@ -225,6 +225,7 @@ def ID3(data, labels, num_classes,strategy):
         node = Node()
         node.bucket = bucketizer(labels,num_classes)
         return node
+        
     decision_func = np.argmax
     if(strategy == "avg_gini_index"):
         decision_func = np.argmin
@@ -235,47 +236,61 @@ def ID3(data, labels, num_classes,strategy):
     for i in range(data.shape[1]):
         attribute = calculate_split_values(
             data, labels,num_classes, i, strategy)
-        min_index = decision_func(attribute[:, 1])
-        decision_value = attribute[:, 0][min_index]
-        decision_split_index = min_index
+        decision_split_index = decision_func(attribute[:, 1],axis=0)
+        decision_value = attribute[:, 0][decision_split_index]
 
         all_features_dec_values.append(decision_value)
         all_features_dec_split_index.append(attribute[:, 1][decision_split_index])
-    
-    feature_num = np.argmin(all_features_dec_split_index)  # which attribute
+
+    feature_num = decision_func(all_features_dec_split_index,axis=0)  # which attribute ginis
     test_val = all_features_dec_values[feature_num]  # test value
 
     node = Node()
     node.bucket = bucketizer(labels, num_classes)
     node.decision_val = test_val
     node.feature = feature_num
-
+    
     data_left = data[data[:,feature_num] < test_val]
     data_right = data[data[:,feature_num] >= test_val]
     labels_left = labels[data[:,feature_num] < test_val]
     labels_right = labels[data[:,feature_num] >= test_val]
+    
+    if(len(labels_left) == 0):
+        node = Node()
+        node.bucket = bucketizer(labels,num_classes)
+        return node
+    if(len(labels_right) == 0):
+        node = Node()
+        node.bucket = bucketizer(labels,num_classes)
+        return node
 
     node.left_child = ID3(data_left,labels_left,num_classes,strategy)
     node.right_child = ID3(data_right,labels_right,num_classes,strategy)
 
     return node
 
+def accuracy(cm):
+    cm = np.rot90(cm,2).T
+    return np.sum(np.trace(cm))/np.sum(cm)
+
 train_set = np.load("dt/train_set.npy ")
 train_labels = np.load("dt/train_labels.npy ")
 test_set = np.load("dt/test_set.npy ")
 test_labels = np.load("dt/test_labels.npy ")
-
 num_classes = len(np.unique(train_labels))
-strategy = "avg_gini_index"
-prune = False
 
-tree = ID3(train_set,train_labels,num_classes=num_classes,strategy=strategy)
+for strategy in ["avg_gini_index", "info_gain"]:
+    prune = False
+    tree = ID3(train_set,train_labels,num_classes=num_classes,strategy=strategy)
 
-graph = pydot.Dot(graph_type='digraph')
-print_tree(tree,0,graph)
-graph.write_png(strategy+"-"+str(prune)+".png")
+    graph = pydot.Dot(graph_type='digraph')
+    print_tree(tree,0,graph)
+    graph.write_png(strategy+"-"+str(prune)+".png")
 
-predictions = predict(tree, test_set)
-cm = confusion_matrix(test_labels, predictions)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-disp.plot()
+    predictions = predict(tree, test_set)
+    cm = confusion_matrix(test_labels, predictions)
+    fig = plt.figure()
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.title(f"test_accuracy: {round(accuracy(cm),4)}")
+    plt.savefig("cm-"+strategy+"-"+str(prune)+".png")
