@@ -1,3 +1,4 @@
+from itertools import count
 import numpy as np
 from numpy.core.fromnumeric import mean
 import pydot
@@ -221,7 +222,7 @@ def bucketizer(labels,num_classes):
 
 def ID3(data, labels, num_classes,strategy):
 
-    if(entropy(bucketizer(labels, num_classes)) == 0.0):
+    if(len(np.unique(labels,return_counts=True)[0]) == 1):
         node = Node()
         node.bucket = bucketizer(labels,num_classes)
         return node
@@ -234,35 +235,33 @@ def ID3(data, labels, num_classes,strategy):
     all_features_dec_values = []
     all_features_dec_split_index = []
     for i in range(data.shape[1]):
-        attribute = calculate_split_values(
-            data, labels,num_classes, i, strategy)
-        decision_split_index = decision_func(attribute[:, 1],axis=0)
-        decision_value = attribute[:, 0][decision_split_index]
-
+        attribute = calculate_split_values(data, labels,num_classes, i, strategy)
+        decision_split_index = decision_func(attribute[:, 1],axis=0)#get min decision function gini/entropy for feature i
+        decision_value = attribute[:, 0][decision_split_index]#get the corresponding decision value for feature i
         all_features_dec_values.append(decision_value)
         all_features_dec_split_index.append(attribute[:, 1][decision_split_index])
 
-    feature_num = decision_func(all_features_dec_split_index,axis=0)  # which attribute ginis
-    test_val = all_features_dec_values[feature_num]  # test value
+    feature_num = decision_func(all_features_dec_split_index,axis=0)#from all features, get the min/max feature
+    test_val = all_features_dec_values[feature_num]  # from min feature get the corespongind decision value
 
     node = Node()
     node.bucket = bucketizer(labels, num_classes)
     node.decision_val = test_val
     node.feature = feature_num
-
-    data_left = data[data[:,feature_num] < test_val]
-    data_right = data[data[:,feature_num] >= test_val]
-    labels_left = labels[data[:,feature_num] < test_val]
-    labels_right = labels[data[:,feature_num] >= test_val]
+           
+    data_left = data[data[:,node.feature] < test_val]
+    data_right = data[data[:,node.feature] >= test_val]
+    labels_left = labels[data[:,node.feature] < test_val]
+    labels_right = labels[data[:,node.feature] >= test_val]
 
     if(len(labels_left) == 0):
         node = Node()        
-        node.bucket = bucketizer(labels_left, num_classes)
-
+        node.bucket = bucketizer(labels_right, num_classes)
         return node
+        
     if(len(labels_right) == 0):
         node = Node()
-        node.bucket = bucketizer(labels_right,num_classes)
+        node.bucket = bucketizer(labels_left,num_classes)
         return node
 
     node.left_child = ID3(data_left,labels_left,num_classes,strategy)
@@ -286,7 +285,11 @@ for strategy in ["avg_gini_index", "info_gain"]:
 
     graph = pydot.Dot(graph_type='digraph')
     print_tree(tree,0,graph)
-    graph.write_png(strategy+"-"+str(prune)+".png")
+    path = "dt_outputs"
+    import os
+    if not(os.path.exists(path) and os.path.isdir(path)):
+        os.makedirs(path)
+    graph.write_png(path+"/"+strategy+"-"+str(prune)+".png")
 
     predictions = predict(tree, test_set)
     cm = confusion_matrix(test_labels, predictions)
@@ -294,4 +297,5 @@ for strategy in ["avg_gini_index", "info_gain"]:
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot()
     plt.title(f"test_accuracy: {round(accuracy(cm),4)}")
-    plt.savefig("cm-"+strategy+"-"+str(prune)+".png")
+
+    plt.savefig("dt_outputs/cm-"+strategy+"-"+str(prune)+".png")
